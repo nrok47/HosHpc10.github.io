@@ -86,13 +86,25 @@ export const ReportByGroupAndMonth: React.FC<ReportByGroupAndMonthProps> = ({
     [projects]
   );
 
+  // ผลสะสมจริง (%) = สะสมผลเบิกจ่าย / งบแผนรวม * 100 (จากผลเบิกจ่ายเท่านั้น ไม่เต็ม 100% ก็ได้)
+  const monthlyDisbursedTotals = useMemo(() => {
+    const t = new Array(12).fill(0);
+    for (let mi = 0; mi < 12; mi++) {
+      const namesInMonth = new Set(projects.filter((p) => p.startMonth === mi).map((p) => p.name));
+      for (const name of namesInMonth) {
+        t[mi] += getDisbursedForActivityMonth(disbursedMap, name, mi);
+      }
+    }
+    return t;
+  }, [projects, disbursedMap]);
+
   const cumulativeActualPct = useMemo(() => {
     let cum = 0;
-    return monthlyTotals.map((m) => {
+    return monthlyDisbursedTotals.map((m) => {
       cum += m;
       return grandTotal > 0 ? (cum / grandTotal) * 100 : 0;
     });
-  }, [monthlyTotals, grandTotal]);
+  }, [monthlyDisbursedTotals, grandTotal]);
 
   const bgColor = isDarkMode ? 'bg-gray-800' : 'bg-white';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';

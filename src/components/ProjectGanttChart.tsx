@@ -65,18 +65,24 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
     return sorted;
   }, [projects, filterGroup, sortBy, searchQuery]);
 
-  // Calculate budget summary
+  // Calculate budget summary (ผลสะสมจริง % จากผลเบิกจ่ายเท่านั้น ไม่จำเป็นต้องเต็ม 100%)
   const budgetSummary = useMemo((): BudgetSummary[] => {
     const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0);
     let cumulativeBudget = 0;
+    let cumulativeDisbursed = 0;
 
     return months.map((_, index) => {
-      const monthlyBudget = projects
-        .filter(p => p.startMonth === index)
-        .reduce((sum, p) => sum + p.budget, 0);
+      const monthProjects = projects.filter(p => p.startMonth === index);
+      const monthlyBudget = monthProjects.reduce((sum, p) => sum + p.budget, 0);
+      const namesInMonth = new Set(monthProjects.map(p => p.name));
+      const monthlyDisbursed = Array.from(namesInMonth).reduce(
+        (sum, name) => sum + getDisbursedForActivityMonth(disbursedMap, name, index),
+        0
+      );
 
       cumulativeBudget += monthlyBudget;
-      const cumulativeActual = totalBudget > 0 ? (cumulativeBudget / totalBudget) * 100 : 0;
+      cumulativeDisbursed += monthlyDisbursed;
+      const cumulativeActual = totalBudget > 0 ? (cumulativeDisbursed / totalBudget) * 100 : 0;
       const cumulativeTarget = CUMULATIVE_TARGETS[index];
 
       return {
@@ -86,7 +92,7 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
         cumulativeActual
       };
     });
-  }, [projects, months]);
+  }, [projects, months, disbursedMap]);
 
   // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, project: Project) => {

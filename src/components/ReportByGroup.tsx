@@ -51,16 +51,22 @@ export const ReportByGroup: React.FC<ReportByGroupProps> = ({
       .sort((a, b) => b.totalBudget - a.totalBudget);
   }, [projects]);
 
-  // งบประมาณรายเดือน / เป้าหมายสะสม / ผลสะสมจริง
+  // งบประมาณรายเดือน / เป้าหมายสะสม / ผลสะสมจริง (% จากผลเบิกจ่ายเท่านั้น)
   const budgetSummary = useMemo((): BudgetSummary[] => {
     const totalBudget = projects.reduce((sum, p) => sum + p.budget, 0);
     let cumulativeBudget = 0;
+    let cumulativeDisbursed = 0;
     return months.map((_, index) => {
-      const monthlyBudget = projects
-        .filter((p) => p.startMonth === index)
-        .reduce((sum, p) => sum + p.budget, 0);
+      const monthProjects = projects.filter((p) => p.startMonth === index);
+      const monthlyBudget = monthProjects.reduce((sum, p) => sum + p.budget, 0);
+      const namesInMonth = new Set(monthProjects.map((p) => p.name));
+      const monthlyDisbursed = Array.from(namesInMonth).reduce(
+        (sum, name) => sum + getDisbursedForActivityMonth(disbursedMap, name, index),
+        0
+      );
       cumulativeBudget += monthlyBudget;
-      const cumulativeActual = totalBudget > 0 ? (cumulativeBudget / totalBudget) * 100 : 0;
+      cumulativeDisbursed += monthlyDisbursed;
+      const cumulativeActual = totalBudget > 0 ? (cumulativeDisbursed / totalBudget) * 100 : 0;
       return {
         monthlyBudget,
         cumulativeBudget,
@@ -68,7 +74,7 @@ export const ReportByGroup: React.FC<ReportByGroupProps> = ({
         cumulativeActual,
       };
     });
-  }, [projects, months]);
+  }, [projects, months, disbursedMap]);
 
   const bgColor = isDarkMode ? 'bg-gray-800' : 'bg-white';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
