@@ -2,10 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { Edit, Trash2, Calendar } from 'lucide-react';
 import { Project, BudgetSummary } from '../types';
 import { getFiscalYearMonths, CUMULATIVE_TARGETS, getCurrentFiscalYear } from '../constants';
-import { updateMeetingDatesToNewMonth } from '../utils-googlesheets';
+import { updateMeetingDatesToNewMonth, getDisbursedForActivityMonth } from '../utils-googlesheets';
 
 interface ProjectGanttChartProps {
   projects: Project[];
+  disbursedMap: Record<string, number> | null;
   onEdit: (project: Project) => void;
   onDelete: (id: string) => void;
   onUpdateProject: (project: Project) => void;
@@ -18,6 +19,7 @@ interface ProjectGanttChartProps {
 
 export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
   projects,
+  disbursedMap,
   onEdit,
   onDelete,
   onUpdateProject,
@@ -170,7 +172,7 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
                     <div className="font-semibold">{project.name}</div>
                     <div className="text-sm opacity-75">{project.group}</div>
                     <div className="text-sm mt-1">
-                      งบประมาณ: {project.budget.toLocaleString('th-TH')} บาท
+                      แผน: {project.budget.toLocaleString('th-TH')} บาท
                     </div>
                     <div className={`inline-block mt-1 px-2 py-1 rounded-full text-xs ${
                       project.status === 'เสร็จสิ้น' ? 'bg-green-600 text-white' :
@@ -209,15 +211,21 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, monthIndex)}
                 >
-                  {project.startMonth === monthIndex && (
-                    <div
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, project)}
-                      className={`${project.color} text-white px-2 py-1 rounded text-xs font-medium cursor-move hover:opacity-80`}
-                    >
-                      {project.budget.toLocaleString('th-TH', { notation: 'compact' })}
-                    </div>
-                  )}
+                  {project.startMonth === monthIndex && (() => {
+                    const disp = getDisbursedForActivityMonth(disbursedMap, project.name, monthIndex);
+                    return (
+                      <div
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, project)}
+                        className={`${project.color} text-white px-2 py-1 rounded text-xs font-medium cursor-move hover:opacity-80 flex flex-col gap-0.5`}
+                      >
+                        <span title="งบแผน">{project.budget.toLocaleString('th-TH', { notation: 'compact' })}</span>
+                        <span className="opacity-90 border-t border-white/30 pt-0.5 text-[10px]" title="ผลเบิกจ่าย (จาก query_DOC)">
+                          {disp > 0 ? disp.toLocaleString('th-TH', { notation: 'compact' }) : '–'}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </td>
               ))}
             </tr>

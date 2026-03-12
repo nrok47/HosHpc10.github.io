@@ -13,6 +13,10 @@ function doGet(e) {
       return getProjects();
     }
     
+    if (action === 'getQueryDoc') {
+      return getQueryDoc();
+    }
+    
     if (action === 'saveProjects') {
       const projectsData = JSON.parse(e.parameter.data || '[]');
       return saveProjects({ projects: projectsData });
@@ -115,6 +119,54 @@ function getProjects() {
     
   } catch (error) {
     Logger.log('Error in getProjects: ' + error.toString());
+    return createResponse({ error: error.toString() }, 500);
+  }
+}
+
+/**
+ * ดึงข้อมูลจากชีต query_DOC สำหรับผลเบิกจ่าย
+ * B=ชื่อโครงการ, C=ชื่อกิจกรรม, D=กิจกรรมดำเนินการ(แผน/ผล), E=เดือน, F=เงิน, G=กลุ่มงาน, H=สายงาน
+ * เฉพาะแถวที่ D = "ผลการใช้จ่าย" เท่านั้น
+ */
+function getQueryDoc() {
+  const sheetId = '137hNk46s2dfyN6SAQmZnOzRJ-zO032yW4AS2LvLxboc';
+  const sheetName = 'query_DOC';
+  
+  try {
+    const spreadsheet = SpreadsheetApp.openById(sheetId);
+    const sheet = spreadsheet.getSheetByName(sheetName);
+    
+    if (!sheet) {
+      return createResponse({ rows: [] }, 200);
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    if (data.length <= 1) {
+      return createResponse({ rows: [] }, 200);
+    }
+    
+    const rows = [];
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const colC = row[2];  // C = ชื่อกิจกรรม
+      const colD = row[3];  // D = กิจกรรมดำเนินการ (แผน หรือ ผลการใช้จ่าย)
+      const colE = row[4];  // E = เดือน (Attribute)
+      const colF = row[5];  // F = เงิน (Value)
+      // เฉพาะแถวที่ D เป็น "ผลการใช้จ่าย"
+      const planOrResult = (colD != null ? String(colD).trim() : '');
+      if (planOrResult.indexOf('ผลการใช้จ่าย') === -1) continue;
+      const amount = typeof colF === 'number' ? colF : parseFloat(String(colF || 0)) || 0;
+      if (!amount && !colC) continue;
+      rows.push({
+        activityLabel: (colC != null ? String(colC).trim() : ''),
+        month: (colE != null ? String(colE).trim() : ''),
+        amount: amount
+      });
+    }
+    
+    return createResponse({ rows: rows }, 200);
+  } catch (error) {
+    Logger.log('Error in getQueryDoc: ' + error.toString());
     return createResponse({ error: error.toString() }, 500);
   }
 }

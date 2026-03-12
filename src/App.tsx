@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, startTransition } from 'react';
 import { Plus, Download, RefreshCw, Moon, Sun, Filter, ArrowUpDown, Search, Cloud, CloudOff, CheckCircle, X, Save } from 'lucide-react';
 import { Project } from './types';
 import { PROJECT_GROUPS } from './constants';
@@ -6,12 +6,16 @@ import { ToastContainer } from './components/Toast';
 import { createToast, Toast } from './hooks/useToast'; 
 import { 
   loadFromGoogleSheets, 
+  loadQueryDoc,
+  buildDisbursedMap,
   saveToGoogleSheets, 
   loadFromLocalStorage, 
   saveToLocalStorage, 
   downloadCSV 
 } from './utils-googlesheets';
 import { ProjectGanttChart } from './components/ProjectGanttChart';
+import { ReportByGroup } from './components/ReportByGroup';
+import { ReportByGroupAndMonth } from './components/ReportByGroupAndMonth';
 import { ProjectModal } from './components/ProjectModal';
 import { CalendarModal } from './components/CalendarModal';
 
@@ -30,6 +34,8 @@ function App() {
   const [isOnline, setIsOnline] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [viewMode, setViewMode] = useState<'gantt' | 'report' | 'report-by-month'>('gantt');
+  const [disbursedMap, setDisbursedMap] = useState<Record<string, number> | null>(null);
 
   // Helper function to add toast (wrapped in useCallback to prevent infinite loops)
   const addToast = useCallback((message: string, type: Toast['type']) => {
@@ -69,7 +75,16 @@ function App() {
       
       try {
         // Try to load from Google Sheets first
-        const googleProjects = await loadFromGoogleSheets();
+        const [googleProjects, queryDocRows] = await Promise.all([
+          loadFromGoogleSheets(),
+          loadQueryDoc(),
+        ]);
+        const map = buildDisbursedMap(queryDocRows);
+        setDisbursedMap(map);
+        const rowCount = queryDocRows.length;
+        if (rowCount > 0) {
+          addToast(`โหลดผลเบิกจ่ายจาก query_DOC แล้ว ${rowCount} แถว`, 'success');
+        }
         
         if (googleProjects && googleProjects.length > 0) {
           setProjects(googleProjects);
@@ -93,7 +108,12 @@ function App() {
       } catch (error) {
         console.error('Error loading from Google Sheets:', error);
         setSyncStatus('error');
-        
+        try {
+          const queryDocRows = await loadQueryDoc();
+          setDisbursedMap(buildDisbursedMap(queryDocRows));
+        } catch (_) {
+          setDisbursedMap(null);
+        }
         // Fallback to localStorage
         const savedProjects = loadFromLocalStorage();
         if (savedProjects && savedProjects.length > 0) {
@@ -196,8 +216,12 @@ function App() {
         setIsLoading(true);
         setSyncStatus('syncing');
         localStorage.removeItem('budgetTrackerProjects');
-        const googleProjects = await loadFromGoogleSheets();
+        const [googleProjects, queryDocRows] = await Promise.all([
+          loadFromGoogleSheets(),
+          loadQueryDoc(),
+        ]);
         setProjects(googleProjects);
+        setDisbursedMap(buildDisbursedMap(queryDocRows));
         setSyncStatus('success');
         setHasUnsavedChanges(false);
         addToast('รีเซ็ตข้อมูลสำเร็จ', 'success');
@@ -265,11 +289,48 @@ function App() {
       <header className={`${cardBg} shadow-lg sticky top-0 z-20`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-2">
               <h1 className="text-2xl sm:text-3xl font-bold text-blue-600">
                 ตารางกำกับและติดตามกิจกรรม
               </h1>
-              
+              <div className="flex gap-1">
+                <button
+                  onClick={() => startTransition(() => setViewMode('gantt'))}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === 'gantt'
+                      ? 'bg-blue-600 text-white'
+                      : isDarkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  ตารางกำกับ (รายกิจกรรม)
+                </button>
+                <button
+                  onClick={() => startTransition(() => setViewMode('report'))}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === 'report'
+                      ? 'bg-blue-600 text-white'
+                      : isDarkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  รายงานภาพรวมรายกลุ่ม
+                </button>
+                <button
+                  onClick={() => startTransition(() => setViewMode('report-by-month'))}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === 'report-by-month'
+                      ? 'bg-blue-600 text-white'
+                      : isDarkMode
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  รายงานภาพรวมรายกลุ่ม+รายเดือน
+                </button>
+              </div>
               {/* Sync Status Indicator */}
               <div className="flex items-center gap-1 text-sm">
                 {!isOnline && (
@@ -294,7 +355,6 @@ function App() {
                 )}
               </div>
             </div>
-            
             <div className="flex flex-wrap items-center gap-2">
               {/* Dark Mode Toggle */}
               <button
@@ -352,7 +412,8 @@ function App() {
             </div>
           </div>
 
-          {/* Filters and Sort */}
+          {/* Filters and Sort - แสดงเฉพาะในมุมมองตารางกำกับ */}
+          {viewMode === 'gantt' && (
           <div className="mt-4 flex flex-col sm:flex-row gap-3">
             {/* Search */}
             <div className="flex items-center gap-2 flex-1">
@@ -436,14 +497,17 @@ function App() {
               </div>
             </div>
           </div>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className={`${cardBg} rounded-lg shadow-lg overflow-hidden`}>
+          {viewMode === 'gantt' ? (
           <ProjectGanttChart
             projects={projects}
+            disbursedMap={disbursedMap}
             onEdit={handleEditProject}
             onDelete={handleDeleteProject}
             onUpdateProject={handleUpdateProject}
@@ -453,6 +517,25 @@ function App() {
             sortBy={sortBy}
             searchQuery={searchQuery}
           />
+          ) : viewMode === 'report' ? (
+          <ReportByGroup
+            projects={projects}
+            disbursedMap={disbursedMap}
+            onEdit={handleEditProject}
+            onDelete={handleDeleteProject}
+            onMonthClick={handleMonthClick}
+            isDarkMode={isDarkMode}
+          />
+          ) : (
+          <ReportByGroupAndMonth
+            projects={projects}
+            disbursedMap={disbursedMap}
+            onEdit={handleEditProject}
+            onDelete={handleDeleteProject}
+            onMonthClick={handleMonthClick}
+            isDarkMode={isDarkMode}
+          />
+          )}
         </div>
       </main>
 

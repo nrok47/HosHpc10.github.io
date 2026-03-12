@@ -39,6 +39,7 @@ export const parseCSV = (csvContent: string): Project[] => {
       name: values[1] || '',
       group: values[2] || '',
       budget: parseFloat(values[3]) || 0,
+      disbursed: parseFloat(values[11]) || 0,
       startMonth: parseInt(values[4]) || 0,
       color: values[5] || 'bg-blue-600',
       status: (values[6] as Project['status']) || 'ยังไม่เริ่ม',
@@ -58,7 +59,7 @@ export const parseCSV = (csvContent: string): Project[] => {
  * Convert Project array to CSV content
  */
 export const projectsToCSV = (projects: Project[]): string => {
-  const headers = 'id,name,group,budget,startMonth,color,status,meetingStartDate,meetingEndDate,vehicle,chairman';
+  const headers = 'id,name,group,budget,startMonth,color,status,meetingStartDate,meetingEndDate,vehicle,chairman,disbursed';
   
   const rows = projects.map(p => {
     const escapeName = p.name.includes(',') ? `"${p.name}"` : p.name;
@@ -75,7 +76,8 @@ export const projectsToCSV = (projects: Project[]): string => {
       p.meetingStartDate || '',
       p.meetingEndDate || '',
       escapeVehicle,
-      escapeChairman
+      escapeChairman,
+      p.disbursed ?? 0
     ].join(',');
   });
   

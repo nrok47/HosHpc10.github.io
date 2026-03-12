@@ -23,6 +23,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     name: '',
     group: PROJECT_GROUPS[0],
     budget: 0,
+    disbursed: 0,
     startMonth: 0,
     color: COLOR_OPTIONS[0].value,
     status: 'ยังไม่เริ่ม',
@@ -38,18 +39,20 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      const initialData = project || {
+      const initialData: Partial<Project> = project ? { ...project } : {
         name: '',
         group: PROJECT_GROUPS[0],
         budget: 0,
+        disbursed: 0,
         startMonth: 0,
         color: COLOR_OPTIONS[0].value,
-        status: 'ยังไม่เริ่ม',
+        status: 'ยังไม่เริ่ม' as ProjectStatus,
         meetingStartDate: '',
         meetingEndDate: '',
         vehicle: '',
         chairman: '',
       };
+      if (initialData.disbursed === undefined) initialData.disbursed = 0;
       setFormData(initialData);
       setOriginalData(initialData);
       setIsMonthLocked(!!initialData.meetingStartDate);
@@ -108,6 +111,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       name: formData.name || '',
       group: formData.group || PROJECT_GROUPS[0],
       budget: formData.budget || 0,
+      disbursed: project?.disbursed ?? 0,
       startMonth: formData.startMonth || 0,
       color: formData.color || COLOR_OPTIONS[0].value,
       status: formData.status || 'ยังไม่เริ่ม',
@@ -179,7 +183,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
               {/* Budget */}
               <div>
-                <label className="block text-sm font-medium mb-2">งบประมาณ (บาท) *</label>
+                <label className="block text-sm font-medium mb-2">งบประมาณแผน (บาท) *</label>
                 <input
                   type="number"
                   required
@@ -190,6 +194,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   placeholder="0"
                 />
               </div>
+
+              {/* ผลเบิกจ่ายดึงจากชีต query_DOC (คอลัมน์ D,E,F) ไม่กรอกในฟอร์ม */}
 
               {/* Meeting Date Range */}
               <div className="grid grid-cols-2 gap-4">

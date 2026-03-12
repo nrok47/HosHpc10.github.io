@@ -1,4 +1,5 @@
-import { Project } from './types';
+import { Project, QueryDocRow } from './types';
+import { THAI_MONTHS, THAI_MONTHS_SHORT } from './constants';
 
 const GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbwd9pVAvMCG_EHJDW6AZ_S1WY96b1AyugbJ9wy2z81uvhbihPVtUclNrYzMwpczDGj61w/exec';
 const STORAGE_KEY = 'budgetTrackerProjects';
@@ -29,6 +30,88 @@ export const loadFromGoogleSheets = async (): Promise<Project[]> => {
     throw error;
   }
 };
+
+/**
+ * โหลดข้อมูลจากชีต query_DOC (เฉพาะแถวที่ D = "ผลการใช้จ่าย")
+ * โครงสร้างชีต: B=ชื่อโครงการ, C=ชื่อกิจกรรม, D=กิจกรรมดำเนินการ(แผน/ผล), E=เดือน, F=เงิน, G=กลุ่มงาน, H=สายงาน
+ * API ส่งกลับ rows: [{ activityLabel (จาก C), month (จาก E), amount (จาก F) }, ...]
+ */
+export const loadQueryDoc = async (): Promise<QueryDocRow[]> => {
+  try {
+    const response = await fetch(`${GOOGLE_SHEETS_API}?action=getQueryDoc&timestamp=${Date.now()}`, {
+      method: 'GET',
+      redirect: 'follow',
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    if (data.error) {
+      console.warn('query_DOC ไม่พร้อมใช้:', data.error, '(รอเพิ่ม action getQueryDoc ใน Google Apps Script)');
+      return [];
+    }
+    const raw = data.rows || data.queryDoc || [];
+    if (!Array.isArray(raw)) return [];
+    return raw.map((r: Record<string, unknown>) => ({
+      activityLabel: (r.activityLabel ?? r.colD ?? r['ผลการใช้จ่าย'] ?? r.D ?? '').toString(),
+      month: (r.month ?? r.colE ?? r.เดือน ?? r.E ?? '').toString(),
+      amount: typeof r.amount === 'number' ? r.amount : parseFloat(String(r.amount ?? r.colF ?? r['จำนวนเงิน'] ?? r.F ?? 0)) || 0,
+    })) as QueryDocRow[];
+  } catch (error) {
+    console.error('Error loading query_DOC:', error);
+    return [];
+  }
+};
+
+/** แปลงข้อความเดือน (คอลัมน์ E) เป็น index ปีงบประมาณ 0=ต.ค., 11=ก.ย. */
+export function parseQueryDocMonth(monthStr: string): number | null {
+  if (monthStr == null || monthStr === '') return null;
+  const s = String(monthStr).trim();
+  const full = THAI_MONTHS.findIndex((m) => s.includes(m) || m.includes(s));
+  if (full >= 0) return full;
+  const short = THAI_MONTHS_SHORT.findIndex((m) => s.startsWith(m) || s.includes(m));
+  if (short >= 0) return short;
+  const num = parseInt(s.replace(/\D/g, ''), 10);
+  if (num >= 1 && num <= 12) {
+    if (num >= 10) return num - 10;
+    return num + 2;
+  }
+  return null;
+}
+
+function normalizeActivityKey(name: string): string {
+  return name.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * สร้าง map (ชื่อกิจกรรม, เดือน 0-11) -> จำนวนเงิน จากแถว query_DOC
+ * ถ้ามีหลายแถวสำหรับกิจกรรมเดียวกันในเดือนเดียวกัน ใช้ค่าแถวสุดท้าย (ไม่ sum เพื่อกันซ้ำซ้อน)
+ */
+export function buildDisbursedMap(rows: QueryDocRow[]): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const row of rows) {
+    const monthIndex = parseQueryDocMonth(row.month);
+    if (monthIndex == null) continue;
+    const label = normalizeActivityKey((row.activityLabel ?? '').toString());
+    if (!label) continue;
+    const key = `${label}|${monthIndex}`;
+    const amount = typeof row.amount === 'number' ? row.amount : parseFloat(String(row.amount)) || 0;
+    map[key] = amount;
+  }
+  return map;
+}
+
+/**
+ * ดึงผลเบิกจ่ายจาก map (จาก query_DOC) สำหรับกิจกรรมและเดือนที่กำหนด
+ * ใช้การจับคู่แบบ normalize ช่องว่าง
+ */
+export function getDisbursedForActivityMonth(
+  disbursedMap: Record<string, number> | null | undefined,
+  activityName: string,
+  monthIndex: number
+): number {
+  if (!disbursedMap) return 0;
+  const key = `${normalizeActivityKey(activityName)}|${monthIndex}`;
+  return disbursedMap[key] ?? 0;
+}
 
 /**
  * Save projects to Google Sheets
@@ -121,6 +204,7 @@ export const parseCSV = (csvContent: string): Project[] => {
       name: values[1] || '',
       group: values[2] || '',
       budget: parseFloat(values[3]) || 0,
+      disbursed: parseFloat(values[11]) || 0,
       startMonth: parseInt(values[4]) || 0,
       color: values[5] || 'bg-blue-600',
       status: (values[6] as Project['status']) || 'ยังไม่เริ่ม',
@@ -154,7 +238,7 @@ export const loadFromCSV = async (): Promise<Project[]> => {
  * Convert Project array to CSV content
  */
 export const projectsToCSV = (projects: Project[]): string => {
-  const headers = 'id,name,group,budget,startMonth,color,status,meetingStartDate,meetingEndDate,vehicle,chairman';
+  const headers = 'id,name,group,budget,startMonth,color,status,meetingStartDate,meetingEndDate,vehicle,chairman,disbursed';
   
   const rows = projects.map(p => {
     const escapeName = p.name.includes(',') ? `"${p.name}"` : p.name;
@@ -171,7 +255,8 @@ export const projectsToCSV = (projects: Project[]): string => {
       p.meetingStartDate || '',
       p.meetingEndDate || '',
       escapeVehicle,
-      escapeChairman
+      escapeChairman,
+      p.disbursed ?? 0
     ].join(',');
   });
   
