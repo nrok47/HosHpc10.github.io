@@ -256,7 +256,7 @@ try {
   });
   
   if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length + 1, 12).setValues(rows);
+    sheet.getRange(2, 1, rows.length, 12).setValues(rows);
     Logger.log('Wrote ' + rows.length + ' rows to sheet');
   }
   

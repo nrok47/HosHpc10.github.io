@@ -202,8 +202,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   type="number"
                   required
                   min="0"
-                  value={formData.budget}
-                  onChange={(e) => handleChange('budget', parseFloat(e.target.value))}
+                  value={Number.isFinite(Number(formData.budget)) ? formData.budget : ''}
+                  onChange={(e) => handleChange('budget', parseFloat(e.target.value) || 0)}
                   className={`w-full px-4 py-2 border ${borderColor} rounded-lg ${inputBg} ${textColor} focus:ring-2 focus:ring-blue-500`}
                   placeholder="0"
                 />
@@ -215,7 +215,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 <input
                   type="number"
                   min="0"
-                  value={formData.disbursed ?? 0}
+                  value={Number.isFinite(Number(formData.disbursed)) ? (formData.disbursed ?? 0) : ''}
                   onChange={(e) => handleChange('disbursed', parseFloat(e.target.value) || 0)}
                   className={`w-full px-4 py-2 border ${borderColor} rounded-lg ${inputBg} ${textColor} focus:ring-2 focus:ring-blue-500`}
                   placeholder="0"
@@ -261,8 +261,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 </label>
                 <select
                   required
-                  value={formData.startMonth}
-                  onChange={(e) => handleChange('startMonth', parseInt(e.target.value))}
+                  value={Number.isFinite(Number(formData.startMonth)) ? formData.startMonth : 0}
+                  onChange={(e) => handleChange('startMonth', parseInt(e.target.value, 10) || 0)}
                   disabled={isMonthLocked}
                   className={`w-full px-4 py-2 border ${borderColor} rounded-lg ${inputBg} ${textColor} focus:ring-2 focus:ring-blue-500 ${
                     isMonthLocked ? 'opacity-50 cursor-not-allowed' : ''
