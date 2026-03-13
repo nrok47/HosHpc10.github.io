@@ -3,7 +3,6 @@ import { Project } from './types';
 /** โปรเจคนี้ใช้เฉพาะ ศูนย์อนามัยที่ 10 อุบลราชธานี (กำกับติดตามโดย นพ.นิติ) — แยกจาก BudgetTrack.github.io เดิมอย่างสิ้นเชิง */
 export const GOOGLE_SHEET_ID = '17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k';
 const GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycby0uPm9v4Bl-__FX6bhsRRpXBeLNW7KKxuaj04sgQ8XJYRe7CD7iFPoIDySfNEXz6DUYQ/exec';
-const STORAGE_KEY = 'hpc10_budgetTrackerProjects';
 
 /**
  * Load projects from Google Sheets
@@ -104,41 +103,10 @@ export const saveToGoogleSheets = async (projects: Project[]): Promise<boolean> 
       mode: 'no-cors',
       body: formData,
     });
-    
-    // Save to localStorage as backup
-    saveToLocalStorage(projects);
-    
     return true;
   } catch (error) {
     console.error('Error saving to Google Sheets:', error);
-    // Still save to localStorage as fallback
-    saveToLocalStorage(projects);
     return false;
-  }
-};
-
-/**
- * Load projects from localStorage
- */
-export const loadFromLocalStorage = (): Project[] | null => {
-  try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return null;
-    return JSON.parse(data);
-  } catch (error) {
-    console.error('Error loading from localStorage:', error);
-    return null;
-  }
-};
-
-/**
- * Save projects to localStorage
- */
-export const saveToLocalStorage = (projects: Project[]): void => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-  } catch (error) {
-    console.error('Error saving to localStorage:', error);
   }
 };
 

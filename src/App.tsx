@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, startTransition } from 'react';
-import { Plus, Download, RefreshCw, Moon, Sun, Filter, ArrowUpDown, Search, Cloud, CloudOff, CheckCircle, X, Save } from 'lucide-react';
+import { Plus, Download, Moon, Sun, Filter, ArrowUpDown, Search, Cloud, CloudOff, CheckCircle, X, Save } from 'lucide-react';
 import { Project } from './types';
 import { ToastContainer } from './components/Toast';
 import { createToast, Toast } from './hooks/useToast'; 
@@ -9,8 +9,6 @@ import {
   saveToGoogleSheets, 
   updateGroupInSheets,
   deleteGroupInSheets,
-  loadFromLocalStorage, 
-  saveToLocalStorage, 
   downloadCSV 
 } from './utils-googlesheets';
 import { ProjectGanttChart } from './components/ProjectGanttChart';
@@ -57,7 +55,7 @@ function App() {
     };
     const handleOffline = () => {
       setIsOnline(false);
-      addToast('ออฟไลน์ - ใช้ข้อมูลจาก localStorage', 'warning');
+      addToast('ออฟไลน์ - ไม่สามารถบันทึกได้', 'warning');
     };
 
     window.addEventListener('online', handleOnline);
@@ -88,35 +86,19 @@ function App() {
             const unique = [...new Set(googleProjects.map(p => p.group).filter(Boolean))].sort();
             setGroups(unique);
           }
-          saveToLocalStorage(googleProjects);
           setSyncStatus('success');
           setHasUnsavedChanges(false);
-          addToast('โหลดข้อมูลจาก Google Sheets (ชีต plans) สำเร็จ', 'success');
+          addToast('โหลดข้อมูลจาก Google Sheets สำเร็จ', 'success');
         } else {
-          // Fallback to localStorage
-          const savedProjects = loadFromLocalStorage();
-          if (savedProjects && savedProjects.length > 0) {
-            setProjects(savedProjects);
-            setSyncStatus('idle');
-            setHasUnsavedChanges(false);
-            addToast('ใช้ข้อมูลจาก localStorage', 'info');
-          } else {
-            setSyncStatus('idle');
-            setHasUnsavedChanges(false);
-          }
+          setProjects([]);
+          setSyncStatus('idle');
+          setHasUnsavedChanges(false);
         }
       } catch (error) {
         console.error('Error loading from Google Sheets:', error);
         setSyncStatus('error');
-        const savedProjects = loadFromLocalStorage();
-        if (savedProjects && savedProjects.length > 0) {
-          setProjects(savedProjects);
-          const unique = [...new Set(savedProjects.map(p => p.group).filter(Boolean))].sort();
-          setGroups(unique);
-          addToast('ไม่สามารถเชื่อมต่อ Google Sheets - ใช้ข้อมูลจาก localStorage', 'warning');
-        } else {
-          addToast('ไม่พบข้อมูล', 'error');
-        }
+        setProjects([]);
+        addToast('โหลดข้อมูลจาก Google Sheets ไม่ได้', 'error');
         setHasUnsavedChanges(false);
       }
       setIsLoading(false);
@@ -125,13 +107,11 @@ function App() {
     loadData();
   }, [addToast]);
 
-  // Auto-save to localStorage and Google Sheets
+  // Auto-save to Google Sheets only
   useEffect(() => {
     if (!isLoading && projects.length > 0) {
-      saveToLocalStorage(projects);
       setHasUnsavedChanges(true);
       
-      // Auto-sync to Google Sheets if online
       if (isOnline) {
         const syncTimer = setTimeout(() => {
           saveToGoogleSheets(projects)
@@ -145,8 +125,7 @@ function App() {
               setSyncStatus('error');
               setTimeout(() => setSyncStatus('idle'), 3000);
             });
-        }, 1000); // Debounce: wait 1s after last change before syncing
-        
+        }, 1000);
         return () => clearTimeout(syncTimer);
       }
     }
@@ -200,35 +179,6 @@ function App() {
 
   const handleUpdateProject = (project: Project) => {
     setProjects(prev => prev.map(p => p.id === project.id ? project : p));
-  };
-
-  // Reset data
-  const handleReset = async () => {
-    if (window.confirm('คุณต้องการรีเซ็ตข้อมูลและโหลดจาก Google Sheets ใหม่หรือไม่?')) {
-      try {
-        setIsLoading(true);
-        setSyncStatus('syncing');
-        localStorage.removeItem('hpc10_budgetTrackerProjects');
-        const [googleProjects, groupList] = await Promise.all([
-          loadFromGoogleSheets(),
-          loadGroups(),
-        ]);
-        setProjects(googleProjects);
-        if (groupList.length > 0) setGroups(groupList);
-        else if (googleProjects.length > 0) {
-          setGroups([...new Set(googleProjects.map(p => p.group).filter(Boolean))].sort());
-        }
-        setSyncStatus('success');
-        setHasUnsavedChanges(false);
-        addToast('รีเซ็ตข้อมูลสำเร็จ', 'success');
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error resetting data:', error);
-        setSyncStatus('error');
-        addToast('เกิดข้อผิดพลาดในการโหลดข้อมูลจาก Google Sheets', 'error');
-        setIsLoading(false);
-      }
-    }
   };
 
   // Manual save to Google Sheets
@@ -406,15 +356,6 @@ function App() {
               >
                 <Download size={20} />
                 <span className="hidden sm:inline">ดาวน์โหลด</span>
-              </button>
-
-              {/* Reset */}
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                <RefreshCw size={20} />
-                <span className="hidden sm:inline">รีเซ็ต</span>
               </button>
             </div>
           </div>

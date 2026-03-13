@@ -5,6 +5,12 @@
 - **Google Sheet ID:** `17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k`
 - **Web App Script:** ใช้ URL ใน `src/utils-googlesheets.ts` (และ deploy script จาก `code_forCopy.gs` ใน Google Apps Script ของ Sheet นี้)
 
+### ที่เก็บข้อมูล (Data storage)
+
+- เก็บข้อมูล**เฉพาะใน Google Sheet** เท่านั้น (ชีตชื่อ `plans` ใน Spreadsheet ข้างบน) ผ่าน Web App Script
+- เมื่อกด "บันทึก" หรือมีการแก้ไข ระบบจะ sync ไปที่ Sheet อัตโนมัติ (debounce 1 วินาที)
+- **ไม่ใช้ localStorage** — เปิดจากเครื่องหรือเบราว์เซอร์ใดก็ได้ข้อมูลจาก Sheet เหมือนกัน
+
 ### GitHub Pages (สำคัญ)
 
 ถ้าเปิดแล้วเจอ **404 หรือ GET /src/main.tsx** แสดงว่า Pages ยังเสิร์ฟจาก branch แทน build:
