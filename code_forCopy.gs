@@ -1,7 +1,8 @@
 /**
- * Google Apps Script สำหรับ Budget Tracker
+ * Google Apps Script สำหรับกำกับติดตามโครงการ ศูนย์อนามัยที่ 10 อุบลราชธานี (นพ.นิติ)
+ * ใช้เฉพาะโปรเจคนี้เท่านั้น — แยกจาก BudgetTrack.github.io เดิมอย่างสิ้นเชิง
  * Sheet ID: 17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k
- * Sheet Name: plans
+ * Sheet Name: plans, query_DOC
  */
 
 // ตั้งค่า CORS และ headers

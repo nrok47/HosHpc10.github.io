@@ -1,4 +1,11 @@
-# Project Budget Tracker
+# กำกับติดตามโครงการ | ศูนย์อนามัยที่ 10 อุบลราชธานี
+
+โปรเจคนี้เป็น instance แยกสำหรับ **ศูนย์อนามัยที่ 10 อุบลราชธานี** (กำกับติดตามโดย นพ.นิติ) เท่านั้น — ไม่เกี่ยวข้องกับ repo [BudgetTrack.github.io](https://github.com/nrok47/BudgetTrack.github.io) เดิม ข้อมูลเชื่อมกับ Google Sheet เฉพาะของศูนย์อนามัยที่ 10
+
+- **Google Sheet ID:** `17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k`
+- **Web App Script:** ใช้ URL ใน `src/utils-googlesheets.ts` (และ deploy script จาก `code_forCopy.gs` ใน Google Apps Script ของ Sheet นี้)
+
+---
 
 A comprehensive web application for tracking and managing project budgets with Thai Fiscal Year timeline (October to September).
 

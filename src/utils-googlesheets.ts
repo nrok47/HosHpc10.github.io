@@ -1,8 +1,10 @@
 import { Project, QueryDocRow } from './types';
 import { THAI_MONTHS, THAI_MONTHS_SHORT } from './constants';
 
+/** โปรเจคนี้ใช้เฉพาะ ศูนย์อนามัยที่ 10 อุบลราชธานี (กำกับติดตามโดย นพ.นิติ) — แยกจาก BudgetTrack.github.io เดิมอย่างสิ้นเชิง */
+export const GOOGLE_SHEET_ID = '17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k';
 const GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycby0uPm9v4Bl-__FX6bhsRRpXBeLNW7KKxuaj04sgQ8XJYRe7CD7iFPoIDySfNEXz6DUYQ/exec';
-const STORAGE_KEY = 'budgetTrackerProjects';
+const STORAGE_KEY = 'hpc10_budgetTrackerProjects';
 
 /**
  * Load projects from Google Sheets

@@ -293,6 +293,9 @@ function App() {
               <h1 className="text-2xl sm:text-3xl font-bold text-blue-600">
                 ตารางกำกับและติดตามกิจกรรม
               </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                ศูนย์อนามัยที่ 10 อุบลราชธานี
+              </p>
               <div className="flex gap-1">
                 <button
                   onClick={() => startTransition(() => setViewMode('gantt'))}
