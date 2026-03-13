@@ -5,6 +5,14 @@
 - **Google Sheet ID:** `17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k`
 - **Web App Script:** ใช้ URL ใน `src/utils-googlesheets.ts` (และ deploy script จาก `code_forCopy.gs` ใน Google Apps Script ของ Sheet นี้)
 
+### GitHub Pages (สำคัญ)
+
+ถ้าเปิดแล้วเจอ **404 หรือ GET /src/main.tsx** แสดงว่า Pages ยังเสิร์ฟจาก branch แทน build:
+
+1. ไปที่ repo → **Settings** → **Pages**
+2. ที่ **Build and deployment** → **Source** เลือก **GitHub Actions**
+3. รอ workflow ในแท็บ Actions ให้ deploy เสร็จ แล้วเปิด **https://nrok47.github.io/HosHpc10.github.io/**
+
 ---
 
 A comprehensive web application for tracking and managing project budgets with Thai Fiscal Year timeline (October to September).

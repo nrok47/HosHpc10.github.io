@@ -2,11 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { Edit, Trash2, Calendar } from 'lucide-react';
 import { Project, BudgetSummary } from '../types';
 import { getFiscalYearMonths, CUMULATIVE_TARGETS, getCurrentFiscalYear } from '../constants';
-import { updateMeetingDatesToNewMonth, getDisbursedForActivityMonth } from '../utils-googlesheets';
+import { updateMeetingDatesToNewMonth, getProjectDisbursedInMonth } from '../utils-googlesheets';
 
 interface ProjectGanttChartProps {
   projects: Project[];
-  disbursedMap: Record<string, number> | null;
   onEdit: (project: Project) => void;
   onDelete: (id: string) => void;
   onUpdateProject: (project: Project) => void;
@@ -19,7 +18,6 @@ interface ProjectGanttChartProps {
 
 export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
   projects,
-  disbursedMap,
   onEdit,
   onDelete,
   onUpdateProject,
@@ -74,11 +72,7 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
     return months.map((_, index) => {
       const monthProjects = projects.filter(p => p.startMonth === index);
       const monthlyBudget = monthProjects.reduce((sum, p) => sum + p.budget, 0);
-      const namesInMonth = new Set(monthProjects.map(p => p.name));
-      const monthlyDisbursed = Array.from(namesInMonth).reduce(
-        (sum, name) => sum + getDisbursedForActivityMonth(disbursedMap, name, index),
-        0
-      );
+      const monthlyDisbursed = monthProjects.reduce((sum, p) => sum + getProjectDisbursedInMonth(p, index), 0);
 
       cumulativeBudget += monthlyBudget;
       cumulativeDisbursed += monthlyDisbursed;
@@ -92,7 +86,7 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
         cumulativeActual
       };
     });
-  }, [projects, months, disbursedMap]);
+  }, [projects, months]);
 
   // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, project: Project) => {
@@ -218,7 +212,7 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
                   onDrop={(e) => handleDrop(e, monthIndex)}
                 >
                   {project.startMonth === monthIndex && (() => {
-                    const disp = getDisbursedForActivityMonth(disbursedMap, project.name, monthIndex);
+                    const disp = getProjectDisbursedInMonth(project, monthIndex);
                     return (
                       <div
                         draggable
@@ -226,7 +220,7 @@ export const ProjectGanttChart: React.FC<ProjectGanttChartProps> = ({
                         className={`${project.color} text-white px-2 py-1 rounded text-xs font-medium cursor-move hover:opacity-80 flex flex-col gap-0.5`}
                       >
                         <span title="งบแผน">{project.budget.toLocaleString('th-TH', { notation: 'compact' })}</span>
-                        <span className="opacity-90 border-t border-white/30 pt-0.5 text-[10px]" title="ผลเบิกจ่าย (จาก query_DOC)">
+                        <span className="opacity-90 border-t border-white/30 pt-0.5 text-[10px]" title="ผลเบิกจ่าย (ช่อง L)">
                           {disp > 0 ? disp.toLocaleString('th-TH', { notation: 'compact' }) : '–'}
                         </span>
                       </div>

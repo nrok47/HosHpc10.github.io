@@ -2,11 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { Edit, Trash2, ArrowLeft, Calendar } from 'lucide-react';
 import { Project } from '../types';
 import { getFiscalYearMonths, CUMULATIVE_TARGETS } from '../constants';
-import { getDisbursedForActivityMonth } from '../utils-googlesheets';
+import { getProjectDisbursedInMonth } from '../utils-googlesheets';
 
 interface ReportByGroupAndMonthProps {
   projects: Project[];
-  disbursedMap: Record<string, number> | null;
   onEdit: (project: Project) => void;
   onDelete: (id: string) => void;
   onMonthClick: (monthIndex: number) => void;
@@ -24,7 +23,6 @@ interface GroupMonthRow {
 
 export const ReportByGroupAndMonth: React.FC<ReportByGroupAndMonthProps> = ({
   projects,
-  disbursedMap,
   onEdit,
   onDelete,
   onMonthClick,
@@ -51,15 +49,8 @@ export const ReportByGroupAndMonth: React.FC<ReportByGroupAndMonthProps> = ({
           byMonth[p.startMonth] += p.budget;
           total += p.budget;
         }
-        // ผลเบิกจ่าย: รวมแค่ครั้งเดียวต่อ (ชื่อกิจกรรม, เดือน) เพื่อไม่ซ้ำเมื่อมีหลาย project ชื่อเดียวกัน
-        for (let mi = 0; mi < 12; mi++) {
-          const namesInMonth = new Set<string>();
-          for (const p of list) {
-            if (p.startMonth === mi) namesInMonth.add(p.name);
-          }
-          for (const name of namesInMonth) {
-            byMonthDisbursed[mi] += getDisbursedForActivityMonth(disbursedMap, name, mi);
-          }
+        for (const p of list) {
+          byMonthDisbursed[p.startMonth] += getProjectDisbursedInMonth(p, p.startMonth);
         }
         return {
           group,
@@ -71,7 +62,7 @@ export const ReportByGroupAndMonth: React.FC<ReportByGroupAndMonthProps> = ({
         };
       })
       .sort((a, b) => b.total - a.total);
-  }, [projects, disbursedMap]);
+  }, [projects]);
 
   const monthlyTotals = useMemo(() => {
     const t = new Array(12).fill(0);
@@ -89,14 +80,11 @@ export const ReportByGroupAndMonth: React.FC<ReportByGroupAndMonthProps> = ({
   // ผลสะสมจริง (%) = สะสมผลเบิกจ่าย / งบแผนรวม * 100 (จากผลเบิกจ่ายเท่านั้น ไม่เต็ม 100% ก็ได้)
   const monthlyDisbursedTotals = useMemo(() => {
     const t = new Array(12).fill(0);
-    for (let mi = 0; mi < 12; mi++) {
-      const namesInMonth = new Set(projects.filter((p) => p.startMonth === mi).map((p) => p.name));
-      for (const name of namesInMonth) {
-        t[mi] += getDisbursedForActivityMonth(disbursedMap, name, mi);
-      }
+    for (const p of projects) {
+      t[p.startMonth] += getProjectDisbursedInMonth(p, p.startMonth);
     }
     return t;
-  }, [projects, disbursedMap]);
+  }, [projects]);
 
   const cumulativeActualPct = useMemo(() => {
     let cum = 0;
@@ -155,7 +143,7 @@ export const ReportByGroupAndMonth: React.FC<ReportByGroupAndMonthProps> = ({
                   <div className="flex flex-col gap-0.5 items-end">
                     <span title="งบแผน">{project.budget.toLocaleString('th-TH')}</span>
                     <span className="text-xs opacity-80" title="ผลเบิกจ่าย (จาก query_DOC)">
-                      {getDisbursedForActivityMonth(disbursedMap, project.name, monthIndex).toLocaleString('th-TH')}
+                      {getProjectDisbursedInMonth(project, monthIndex).toLocaleString('th-TH')}
                     </span>
                   </div>
                 </td>

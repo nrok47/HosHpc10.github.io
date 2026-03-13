@@ -1,8 +1,8 @@
 /**
  * Google Apps Script สำหรับกำกับติดตามโครงการ ศูนย์อนามัยที่ 10 อุบลราชธานี (นพ.นิติ)
- * ใช้เฉพาะโปรเจคนี้เท่านั้น — แยกจาก BudgetTrack.github.io เดิมอย่างสิ้นเชิง
+ * ใช้เฉพาะชีต plans เท่านั้น — ผลเบิกจ่ายจากคอลัมน์ L
  * Sheet ID: 17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k
- * Sheet Name: plans, query_DOC
+ * Sheet Name: plans (A=id, B=name, C=group, D=budget, E=startMonth, F=color, G=status, H,I=meeting, J=vehicle, K=chairman, L=disbursed)
  */
 
 // ตั้งค่า CORS และ headers
@@ -14,10 +14,18 @@ function doGet(e) {
       return getProjects();
     }
     
-    if (action === 'getQueryDoc') {
-      return getQueryDoc();
+    if (action === 'getGroups') {
+      return getGroups();
     }
-    
+    if (action === 'updateGroup') {
+      var oldName = e.parameter.oldName || '';
+      var newName = e.parameter.newName || '';
+      return updateGroup(oldName, newName);
+    }
+    if (action === 'deleteGroup') {
+      var groupName = e.parameter.name || '';
+      return deleteGroup(groupName);
+    }
     if (action === 'saveProjects') {
       const projectsData = JSON.parse(e.parameter.data || '[]');
       return saveProjects({ projects: projectsData });
@@ -40,21 +48,22 @@ function doPost(e) {
       try {
         data = JSON.parse(e.postData.contents);
       } catch (err) {
-        // If JSON parse fails, try to get from parameter (FormData)
         if (e.parameter && e.parameter.projects) {
-          data = {
-            action: e.parameter.action || 'saveProjects',
-            projects: JSON.parse(e.parameter.projects)
-          };
+          data = { action: 'saveProjects', projects: JSON.parse(e.parameter.projects) };
+        } else if (e.parameter && (e.parameter.oldName != null || e.parameter.newName != null)) {
+          data = { action: 'updateGroup', oldName: e.parameter.oldName || '', newName: e.parameter.newName || '' };
+        } else if (e.parameter && e.parameter.name != null) {
+          data = { action: 'deleteGroup', name: e.parameter.name || '' };
         } else {
           throw new Error('Invalid data format');
         }
       }
     } else if (e.parameter && e.parameter.projects) {
-      data = {
-        action: e.parameter.action || 'saveProjects',
-        projects: JSON.parse(e.parameter.projects)
-      };
+      data = { action: 'saveProjects', projects: JSON.parse(e.parameter.projects) };
+    } else if (e.parameter && (e.parameter.oldName != null || e.parameter.newName != null)) {
+      data = { action: 'updateGroup', oldName: e.parameter.oldName || '', newName: e.parameter.newName || '' };
+    } else if (e.parameter && e.parameter.name != null) {
+      data = { action: 'deleteGroup', name: e.parameter.name || '' };
     } else {
       throw new Error('No data received');
     }
@@ -62,7 +71,12 @@ function doPost(e) {
     if (data.action === 'saveProjects') {
       return saveProjects(data);
     }
-    
+    if (data.action === 'updateGroup') {
+      return updateGroup(data.oldName || '', data.newName || '');
+    }
+    if (data.action === 'deleteGroup') {
+      return deleteGroup(data.name || '');
+    }
     return createResponse({ error: 'Invalid action' }, 400);
   } catch (error) {
     Logger.log('Error in doPost: ' + error.toString());
@@ -110,7 +124,8 @@ function getProjects() {
         meetingStartDate: row[7] ? formatDate(row[7]) : undefined,
         meetingEndDate: row[8] ? formatDate(row[8]) : undefined,
         vehicle: row[9]?.toString() || '',
-        chairman: row[10]?.toString() || ''
+        chairman: row[10]?.toString() || '',
+        disbursed: parseFloat(row[11]) || 0
       };
       
       projects.push(project);
@@ -125,49 +140,77 @@ function getProjects() {
 }
 
 /**
- * ดึงข้อมูลจากชีต query_DOC สำหรับผลเบิกจ่าย
- * B=ชื่อโครงการ, C=ชื่อกิจกรรม, D=กิจกรรมดำเนินการ(แผน/ผล), E=เดือน, F=เงิน, G=กลุ่มงาน, H=สายงาน
- * เฉพาะแถวที่ D = "ผลการใช้จ่าย" เท่านั้น
+ * ดึงรายชื่อกลุ่มงานที่ไม่ซ้ำจากคอลัมน์ C ใน plans
  */
-function getQueryDoc() {
+function getGroups() {
   const sheetId = '17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k';
-  const sheetName = 'query_DOC';
-  
+  const sheetName = 'plans';
   try {
-    const spreadsheet = SpreadsheetApp.openById(sheetId);
-    const sheet = spreadsheet.getSheetByName(sheetName);
-    
-    if (!sheet) {
-      return createResponse({ rows: [] }, 200);
-    }
-    
+    const sheet = SpreadsheetApp.openById(sheetId).getSheetByName(sheetName);
+    if (!sheet) return createResponse({ groups: [] }, 200);
     const data = sheet.getDataRange().getValues();
-    if (data.length <= 1) {
-      return createResponse({ rows: [] }, 200);
+    const seen = {};
+    const groups = [];
+    for (var i = 1; i < data.length; i++) {
+      var g = (data[i][2] != null ? String(data[i][2]).trim() : '');
+      if (g && !seen[g]) { seen[g] = true; groups.push(g); }
     }
-    
-    const rows = [];
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const colC = row[2];  // C = ชื่อกิจกรรม
-      const colD = row[3];  // D = กิจกรรมดำเนินการ (แผน หรือ ผลการใช้จ่าย)
-      const colE = row[4];  // E = เดือน (Attribute)
-      const colF = row[5];  // F = เงิน (Value)
-      // เฉพาะแถวที่ D เป็น "ผลการใช้จ่าย"
-      const planOrResult = (colD != null ? String(colD).trim() : '');
-      if (planOrResult.indexOf('ผลการใช้จ่าย') === -1) continue;
-      const amount = typeof colF === 'number' ? colF : parseFloat(String(colF || 0)) || 0;
-      if (!amount && !colC) continue;
-      rows.push({
-        activityLabel: (colC != null ? String(colC).trim() : ''),
-        month: (colE != null ? String(colE).trim() : ''),
-        amount: amount
-      });
-    }
-    
-    return createResponse({ rows: rows }, 200);
+    groups.sort();
+    return createResponse({ groups: groups }, 200);
   } catch (error) {
-    Logger.log('Error in getQueryDoc: ' + error.toString());
+    Logger.log('Error in getGroups: ' + error.toString());
+    return createResponse({ error: error.toString() }, 500);
+  }
+}
+
+/**
+ * เปลี่ยนชื่อกลุ่มงาน (ทุกแถวที่ group = oldName เป็น newName)
+ */
+function updateGroup(oldName, newName) {
+  const sheetId = '17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k';
+  const sheetName = 'plans';
+  if (!oldName || !newName) return createResponse({ error: 'oldName and newName required' }, 400);
+  try {
+    const sheet = SpreadsheetApp.openById(sheetId).getSheetByName(sheetName);
+    if (!sheet) return createResponse({ error: 'Sheet not found' }, 404);
+    const data = sheet.getDataRange().getValues();
+    var count = 0;
+    for (var i = 1; i < data.length; i++) {
+      if ((data[i][2] != null ? String(data[i][2]).trim() : '') === oldName) {
+        sheet.getRange(i + 1, 3).setValue(newName);
+        count++;
+      }
+    }
+    return createResponse({ success: true, updated: count }, 200);
+  } catch (error) {
+    Logger.log('Error in updateGroup: ' + error.toString());
+    return createResponse({ error: error.toString() }, 500);
+  }
+}
+
+/**
+ * ลบทุกกิจกรรมในกลุ่มที่ระบุ (ลบแถวที่ group = name)
+ */
+function deleteGroup(name) {
+  const sheetId = '17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k';
+  const sheetName = 'plans';
+  if (!name) return createResponse({ error: 'name required' }, 400);
+  try {
+    const sheet = SpreadsheetApp.openById(sheetId).getSheetByName(sheetName);
+    if (!sheet) return createResponse({ error: 'Sheet not found' }, 404);
+    const data = sheet.getDataRange().getValues();
+    var rowsToDelete = [];
+    for (var i = 1; i < data.length; i++) {
+      if ((data[i][2] != null ? String(data[i][2]).trim() : '') === name) {
+        rowsToDelete.push(i + 1);
+      }
+    }
+    for (var j = rowsToDelete.length - 1; j >= 0; j--) {
+      sheet.deleteRow(rowsToDelete[j]);
+    }
+    return createResponse({ success: true, deleted: rowsToDelete.length }, 200);
+  } catch (error) {
+    Logger.log('Error in deleteGroup: ' + error.toString());
     return createResponse({ error: error.toString() }, 500);
   }
 }
@@ -193,7 +236,7 @@ function saveProjects(data) {
       sheet.deleteRows(2, lastRow - 1);
     }
     
-    // เขียนข้อมูลใหม่
+    // เขียนข้อมูลใหม่ (คอลัมน์ A–L, L = ผลเบิกจ่าย)
     const rows = projects.map(p => {
       const row = [
         p.id,
@@ -206,14 +249,14 @@ function saveProjects(data) {
         p.meetingStartDate || '',
         p.meetingEndDate || '',
         p.vehicle || '',
-        p.chairman || ''
+        p.chairman || '',
+        typeof p.disbursed === 'number' ? p.disbursed : 0
       ];
-      Logger.log('Row: ' + JSON.stringify(row));
       return row;
     });
     
     if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, 11).setValues(rows);
+      sheet.getRange(2, 1, rows.length + 1, 12).setValues(rows);
       Logger.log('Wrote ' + rows.length + ' rows to sheet');
     }
     

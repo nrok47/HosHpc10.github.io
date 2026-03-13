@@ -3,11 +3,10 @@ import { Edit, Trash2, ArrowLeft, ChevronRight, Calendar } from 'lucide-react';
 import { Project } from '../types';
 import { BudgetSummary } from '../types';
 import { getFiscalYearMonths, CUMULATIVE_TARGETS } from '../constants';
-import { getDisbursedForActivityMonth } from '../utils-googlesheets';
+import { getProjectDisbursedInMonth } from '../utils-googlesheets';
 
 interface ReportByGroupProps {
   projects: Project[];
-  disbursedMap: Record<string, number> | null;
   onEdit: (project: Project) => void;
   onDelete: (id: string) => void;
   onMonthClick: (monthIndex: number) => void;
@@ -23,7 +22,6 @@ interface GroupSummary {
 
 export const ReportByGroup: React.FC<ReportByGroupProps> = ({
   projects,
-  disbursedMap,
   onEdit,
   onDelete,
   onMonthClick,
@@ -59,9 +57,8 @@ export const ReportByGroup: React.FC<ReportByGroupProps> = ({
     return months.map((_, index) => {
       const monthProjects = projects.filter((p) => p.startMonth === index);
       const monthlyBudget = monthProjects.reduce((sum, p) => sum + p.budget, 0);
-      const namesInMonth = new Set(monthProjects.map((p) => p.name));
-      const monthlyDisbursed = Array.from(namesInMonth).reduce(
-        (sum, name) => sum + getDisbursedForActivityMonth(disbursedMap, name, index),
+      const monthlyDisbursed = monthProjects.reduce(
+        (sum, p) => sum + getProjectDisbursedInMonth(p, index),
         0
       );
       cumulativeBudget += monthlyBudget;
@@ -74,7 +71,7 @@ export const ReportByGroup: React.FC<ReportByGroupProps> = ({
         cumulativeActual,
       };
     });
-  }, [projects, months, disbursedMap]);
+  }, [projects, months]);
 
   const bgColor = isDarkMode ? 'bg-gray-800' : 'bg-white';
   const textColor = isDarkMode ? 'text-white' : 'text-gray-900';
@@ -171,11 +168,11 @@ export const ReportByGroup: React.FC<ReportByGroupProps> = ({
                 {months.map((_, monthIndex) => (
                   <td key={monthIndex} className={`border ${borderColor} p-2 text-center`}>
                     {project.startMonth === monthIndex && (() => {
-                      const disp = getDisbursedForActivityMonth(disbursedMap, project.name, monthIndex);
+                      const disp = getProjectDisbursedInMonth(project, monthIndex);
                       return (
                         <div className={`${project.color} text-white px-2 py-1 rounded text-xs font-medium inline-flex flex-col gap-0.5`}>
                           <span title="งบแผน">{project.budget.toLocaleString('th-TH', { notation: 'compact' })}</span>
-                          <span className="opacity-90 border-t border-white/30 pt-0.5 text-[10px]" title="ผลเบิกจ่าย (จาก query_DOC)">
+                          <span className="opacity-90 border-t border-white/30 pt-0.5 text-[10px]" title="ผลเบิกจ่าย (ช่อง L)">
                             {disp > 0 ? disp.toLocaleString('th-TH', { notation: 'compact' }) : '–'}
                           </span>
                         </div>

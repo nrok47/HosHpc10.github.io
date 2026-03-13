@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { Project, ProjectStatus } from '../types';
-import { PROJECT_GROUPS, PROJECT_STATUSES, COLOR_OPTIONS, THAI_MONTHS } from '../constants';
+import { PROJECT_STATUSES, COLOR_OPTIONS, THAI_MONTHS } from '../constants';
 import { dateToFiscalMonth, generateId } from '../utils';
 
 interface ProjectModalProps {
@@ -10,6 +10,8 @@ interface ProjectModalProps {
   onSave: (project: Project) => void;
   project?: Project;
   isDarkMode: boolean;
+  groups: string[];
+  onGroupsChange?: (groups: string[]) => void;
 }
 
 export const ProjectModal: React.FC<ProjectModalProps> = ({
@@ -17,11 +19,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   onClose,
   onSave,
   project,
-  isDarkMode
+  isDarkMode,
+  groups,
+  onGroupsChange,
 }) => {
   const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
-    group: PROJECT_GROUPS[0],
+    group: '',
     budget: 0,
     disbursed: 0,
     startMonth: 0,
@@ -39,9 +43,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      const defaultGroup = groups.length > 0 ? groups[0] : '';
       const initialData: Partial<Project> = project ? { ...project } : {
         name: '',
-        group: PROJECT_GROUPS[0],
+        group: defaultGroup,
         budget: 0,
         disbursed: 0,
         startMonth: 0,
@@ -53,11 +58,12 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         chairman: '',
       };
       if (initialData.disbursed === undefined) initialData.disbursed = 0;
+      if (!initialData.group && defaultGroup) initialData.group = defaultGroup;
       setFormData(initialData);
       setOriginalData(initialData);
       setIsMonthLocked(!!initialData.meetingStartDate);
     }
-  }, [isOpen, project]);
+  }, [isOpen, project, groups]);
 
   const hasUnsavedChanges = (): boolean => {
     return JSON.stringify(formData) !== JSON.stringify(originalData);
@@ -106,12 +112,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       }
     }
     
+    const newGroup = (formData.group || '').trim();
+    if (newGroup && onGroupsChange && !groups.includes(newGroup)) {
+      onGroupsChange([...groups, newGroup].sort());
+    }
     const projectData: Project = {
       id: project?.id || generateId(),
       name: formData.name || '',
-      group: formData.group || PROJECT_GROUPS[0],
+      group: newGroup || (groups[0] || ''),
       budget: formData.budget || 0,
-      disbursed: project?.disbursed ?? 0,
+      disbursed: formData.disbursed ?? 0,
       startMonth: formData.startMonth || 0,
       color: formData.color || COLOR_OPTIONS[0].value,
       status: formData.status || 'ยังไม่เริ่ม',
@@ -168,17 +178,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
               {/* Group */}
               <div>
-                <label className="block text-sm font-medium mb-2">กลุ่ม *</label>
-                <select
+                <label className="block text-sm font-medium mb-2">กลุ่มงาน *</label>
+                <input
+                  type="text"
+                  list="groups-list"
                   required
                   value={formData.group}
                   onChange={(e) => handleChange('group', e.target.value)}
                   className={`w-full px-4 py-2 border ${borderColor} rounded-lg ${inputBg} ${textColor} focus:ring-2 focus:ring-blue-500`}
-                >
-                  {PROJECT_GROUPS.map(group => (
-                    <option key={group} value={group}>{group}</option>
+                  placeholder="เลือกหรือพิมพ์ชื่อกลุ่มงานใหม่"
+                />
+                <datalist id="groups-list">
+                  {groups.map(g => (
+                    <option key={g} value={g} />
                   ))}
-                </select>
+                </datalist>
               </div>
 
               {/* Budget */}
@@ -195,7 +209,18 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 />
               </div>
 
-              {/* ผลเบิกจ่ายดึงจากชีต query_DOC (คอลัมน์ D,E,F) ไม่กรอกในฟอร์ม */}
+              {/* ผลเบิกจ่าย (ช่อง L ใน plans) */}
+              <div>
+                <label className="block text-sm font-medium mb-2">ผลเบิกจ่าย (บาท)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={formData.disbursed ?? 0}
+                  onChange={(e) => handleChange('disbursed', parseFloat(e.target.value) || 0)}
+                  className={`w-full px-4 py-2 border ${borderColor} rounded-lg ${inputBg} ${textColor} focus:ring-2 focus:ring-blue-500`}
+                  placeholder="0"
+                />
+              </div>
 
               {/* Meeting Date Range */}
               <div className="grid grid-cols-2 gap-4">

@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, startTransition } from 'react';
 import { Plus, Download, RefreshCw, Moon, Sun, Filter, ArrowUpDown, Search, Cloud, CloudOff, CheckCircle, X, Save } from 'lucide-react';
 import { Project } from './types';
-import { PROJECT_GROUPS } from './constants';
 import { ToastContainer } from './components/Toast';
 import { createToast, Toast } from './hooks/useToast'; 
 import { 
   loadFromGoogleSheets, 
-  loadQueryDoc,
-  buildDisbursedMap,
+  loadGroups,
   saveToGoogleSheets, 
+  updateGroupInSheets,
+  deleteGroupInSheets,
   loadFromLocalStorage, 
   saveToLocalStorage, 
   downloadCSV 
@@ -18,6 +18,7 @@ import { ReportByGroup } from './components/ReportByGroup';
 import { ReportByGroupAndMonth } from './components/ReportByGroupAndMonth';
 import { ProjectModal } from './components/ProjectModal';
 import { CalendarModal } from './components/CalendarModal';
+import { GroupsModal } from './components/GroupsModal';
 
 function App() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -35,7 +36,8 @@ function App() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [viewMode, setViewMode] = useState<'gantt' | 'report' | 'report-by-month'>('gantt');
-  const [disbursedMap, setDisbursedMap] = useState<Record<string, number> | null>(null);
+  const [groups, setGroups] = useState<string[]>([]);
+  const [isGroupsModalOpen, setIsGroupsModalOpen] = useState(false);
 
   // Helper function to add toast (wrapped in useCallback to prevent infinite loops)
   const addToast = useCallback((message: string, type: Toast['type']) => {
@@ -74,24 +76,22 @@ function App() {
       setSyncStatus('syncing');
       
       try {
-        // Try to load from Google Sheets first
-        const [googleProjects, queryDocRows] = await Promise.all([
+        const [googleProjects, groupList] = await Promise.all([
           loadFromGoogleSheets(),
-          loadQueryDoc(),
+          loadGroups(),
         ]);
-        const map = buildDisbursedMap(queryDocRows);
-        setDisbursedMap(map);
-        const rowCount = queryDocRows.length;
-        if (rowCount > 0) {
-          addToast(`โหลดผลเบิกจ่ายจาก query_DOC แล้ว ${rowCount} แถว`, 'success');
-        }
+        if (groupList.length > 0) setGroups(groupList);
         
         if (googleProjects && googleProjects.length > 0) {
           setProjects(googleProjects);
-          saveToLocalStorage(googleProjects); // Backup to localStorage
+          if (groupList.length === 0) {
+            const unique = [...new Set(googleProjects.map(p => p.group).filter(Boolean))].sort();
+            setGroups(unique);
+          }
+          saveToLocalStorage(googleProjects);
           setSyncStatus('success');
-          setHasUnsavedChanges(false); // Reset unsaved changes after initial load
-          addToast('โหลดข้อมูลจาก Google Sheets สำเร็จ', 'success');
+          setHasUnsavedChanges(false);
+          addToast('โหลดข้อมูลจาก Google Sheets (ชีต plans) สำเร็จ', 'success');
         } else {
           // Fallback to localStorage
           const savedProjects = loadFromLocalStorage();
@@ -108,24 +108,17 @@ function App() {
       } catch (error) {
         console.error('Error loading from Google Sheets:', error);
         setSyncStatus('error');
-        try {
-          const queryDocRows = await loadQueryDoc();
-          setDisbursedMap(buildDisbursedMap(queryDocRows));
-        } catch (_) {
-          setDisbursedMap(null);
-        }
-        // Fallback to localStorage
         const savedProjects = loadFromLocalStorage();
         if (savedProjects && savedProjects.length > 0) {
           setProjects(savedProjects);
-          setHasUnsavedChanges(false);
+          const unique = [...new Set(savedProjects.map(p => p.group).filter(Boolean))].sort();
+          setGroups(unique);
           addToast('ไม่สามารถเชื่อมต่อ Google Sheets - ใช้ข้อมูลจาก localStorage', 'warning');
         } else {
-          setHasUnsavedChanges(false);
           addToast('ไม่พบข้อมูล', 'error');
         }
+        setHasUnsavedChanges(false);
       }
-      
       setIsLoading(false);
     };
     
@@ -215,13 +208,16 @@ function App() {
       try {
         setIsLoading(true);
         setSyncStatus('syncing');
-        localStorage.removeItem('budgetTrackerProjects');
-        const [googleProjects, queryDocRows] = await Promise.all([
+        localStorage.removeItem('hpc10_budgetTrackerProjects');
+        const [googleProjects, groupList] = await Promise.all([
           loadFromGoogleSheets(),
-          loadQueryDoc(),
+          loadGroups(),
         ]);
         setProjects(googleProjects);
-        setDisbursedMap(buildDisbursedMap(queryDocRows));
+        if (groupList.length > 0) setGroups(groupList);
+        else if (googleProjects.length > 0) {
+          setGroups([...new Set(googleProjects.map(p => p.group).filter(Boolean))].sort());
+        }
         setSyncStatus('success');
         setHasUnsavedChanges(false);
         addToast('รีเซ็ตข้อมูลสำเร็จ', 'success');
@@ -388,11 +384,19 @@ function App() {
 
               {/* Add Project */}
               <button
+                onClick={() => setIsGroupsModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
+                title="จัดการกลุ่มงาน"
+              >
+                <Filter size={20} />
+                <span className="hidden sm:inline">กลุ่มงาน</span>
+              </button>
+              <button
                 onClick={handleAddProject}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
               >
                 <Plus size={20} />
-                <span className="hidden sm:inline">เพิ่ม</span>
+                <span className="hidden sm:inline">เพิ่มกิจกรรม</span>
               </button>
 
               {/* Download CSV */}
@@ -456,7 +460,7 @@ function App() {
                 } focus:ring-2 focus:ring-blue-500`}
               >
                 <option value="ทั้งหมด">ทุกกลุ่ม</option>
-                {PROJECT_GROUPS.map(group => (
+                {groups.map(group => (
                   <option key={group} value={group}>{group}</option>
                 ))}
               </select>
@@ -510,7 +514,6 @@ function App() {
           {viewMode === 'gantt' ? (
           <ProjectGanttChart
             projects={projects}
-            disbursedMap={disbursedMap}
             onEdit={handleEditProject}
             onDelete={handleDeleteProject}
             onUpdateProject={handleUpdateProject}
@@ -523,7 +526,6 @@ function App() {
           ) : viewMode === 'report' ? (
           <ReportByGroup
             projects={projects}
-            disbursedMap={disbursedMap}
             onEdit={handleEditProject}
             onDelete={handleDeleteProject}
             onMonthClick={handleMonthClick}
@@ -532,7 +534,6 @@ function App() {
           ) : (
           <ReportByGroupAndMonth
             projects={projects}
-            disbursedMap={disbursedMap}
             onEdit={handleEditProject}
             onDelete={handleDeleteProject}
             onMonthClick={handleMonthClick}
@@ -551,6 +552,32 @@ function App() {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveProject}
         project={selectedProject}
+        isDarkMode={isDarkMode}
+        groups={groups}
+        onGroupsChange={setGroups}
+      />
+      <GroupsModal
+        isOpen={isGroupsModalOpen}
+        onClose={() => setIsGroupsModalOpen(false)}
+        groups={groups}
+        projects={projects}
+        onRenameGroup={async (oldName, newName) => {
+          const ok = await updateGroupInSheets(oldName, newName);
+          if (ok) {
+            setProjects(prev => prev.map(p => p.group === oldName ? { ...p, group: newName } : p));
+            setGroups(prev => [...new Set(prev.map(g => g === oldName ? newName : g))].sort());
+            addToast(`เปลี่ยนชื่อกลุ่ม "${oldName}" เป็น "${newName}" แล้ว`, 'success');
+          }
+        }}
+        onDeleteGroup={async (name) => {
+          if (!window.confirm(`ลบกลุ่ม "${name}" จะลบทุกกิจกรรมในกลุ่มนี้ด้วย. ต้องการดำเนินการหรือไม่?`)) return;
+          const ok = await deleteGroupInSheets(name);
+          if (ok) {
+            setProjects(prev => prev.filter(p => p.group !== name));
+            setGroups(prev => prev.filter(g => g !== name));
+            addToast(`ลบกลุ่ม "${name}" แล้ว`, 'success');
+          }
+        }}
         isDarkMode={isDarkMode}
       />
 
