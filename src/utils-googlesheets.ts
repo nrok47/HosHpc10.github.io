@@ -1,7 +1,7 @@
 import { Project, QueryDocRow } from './types';
 import { THAI_MONTHS, THAI_MONTHS_SHORT } from './constants';
 
-const GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycbwd9pVAvMCG_EHJDW6AZ_S1WY96b1AyugbJ9wy2z81uvhbihPVtUclNrYzMwpczDGj61w/exec';
+const GOOGLE_SHEETS_API = 'https://script.google.com/macros/s/AKfycby0uPm9v4Bl-__FX6bhsRRpXBeLNW7KKxuaj04sgQ8XJYRe7CD7iFPoIDySfNEXz6DUYQ/exec';
 const STORAGE_KEY = 'budgetTrackerProjects';
 
 /**

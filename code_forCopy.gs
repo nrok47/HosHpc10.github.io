@@ -1,6 +1,6 @@
 /**
  * Google Apps Script สำหรับ Budget Tracker
- * Sheet ID: 137hNk46s2dfyN6SAQmZnOzRJ-zO032yW4AS2LvLxboc
+ * Sheet ID: 17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k
  * Sheet Name: plans
  */
 
@@ -71,7 +71,7 @@ function doPost(e) {
 
 // ดึงข้อมูลโครงการทั้งหมด
 function getProjects() {
-  const sheetId = '137hNk46s2dfyN6SAQmZnOzRJ-zO032yW4AS2LvLxboc';
+  const sheetId = '17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k';
   const sheetName = 'plans';
   
   try {
@@ -129,7 +129,7 @@ function getProjects() {
  * เฉพาะแถวที่ D = "ผลการใช้จ่าย" เท่านั้น
  */
 function getQueryDoc() {
-  const sheetId = '137hNk46s2dfyN6SAQmZnOzRJ-zO032yW4AS2LvLxboc';
+  const sheetId = '17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k';
   const sheetName = 'query_DOC';
   
   try {
@@ -173,7 +173,7 @@ function getQueryDoc() {
 
 // บันทึกข้อมูลโครงการ
 function saveProjects(data) {
-  const sheetId = '137hNk46s2dfyN6SAQmZnOzRJ-zO032yW4AS2LvLxboc';
+  const sheetId = '17WdWPnU-LURpSlMv9vc37vZG0IgpKOfsNLS4cvCh_3k';
   const sheetName = 'plans';
   
   try {
