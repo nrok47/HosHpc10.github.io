@@ -115,14 +115,21 @@ function App() {
       if (isOnline) {
         const syncTimer = setTimeout(() => {
           saveToGoogleSheets(projects)
-            .then(() => {
-              setSyncStatus('success');
-              setHasUnsavedChanges(false);
-              setTimeout(() => setSyncStatus('idle'), 2000);
+            .then((ok) => {
+              if (ok) {
+                setSyncStatus('success');
+                setHasUnsavedChanges(false);
+                setTimeout(() => setSyncStatus('idle'), 2000);
+              } else {
+                setSyncStatus('error');
+                addToast('บันทึกลง Sheet ไม่สำเร็จ', 'error');
+                setTimeout(() => setSyncStatus('idle'), 3000);
+              }
             })
             .catch((error) => {
               console.error('Auto-sync to Google Sheets failed:', error);
               setSyncStatus('error');
+              addToast('บันทึกลง Sheet ไม่สำเร็จ', 'error');
               setTimeout(() => setSyncStatus('idle'), 3000);
             });
         }, 1000);
@@ -190,13 +197,17 @@ function App() {
 
     try {
       setSyncStatus('syncing');
-      await saveToGoogleSheets(projects);
-      setSyncStatus('success');
-      setHasUnsavedChanges(false);
-      addToast('บันทึกข้อมูลลง Google Sheets สำเร็จ', 'success');
-      
-      // Auto-hide success status after 2 seconds
-      setTimeout(() => setSyncStatus('idle'), 2000);
+      const ok = await saveToGoogleSheets(projects);
+      if (ok) {
+        setSyncStatus('success');
+        setHasUnsavedChanges(false);
+        addToast('บันทึกข้อมูลลง Google Sheets สำเร็จ', 'success');
+        setTimeout(() => setSyncStatus('idle'), 2000);
+      } else {
+        setSyncStatus('error');
+        addToast('บันทึกข้อมูลลง Google Sheets ไม่สำเร็จ', 'error');
+        setTimeout(() => setSyncStatus('idle'), 3000);
+      }
     } catch (error) {
       console.error('Failed to save to Google Sheets:', error);
       setSyncStatus('error');

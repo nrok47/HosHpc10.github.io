@@ -90,20 +90,23 @@ export function getProjectDisbursedInMonth(project: Project, monthIndex: number)
 
 /**
  * Save projects to Google Sheets
+ * ส่งแบบ application/x-www-form-urlencoded เพื่อให้ GAS อ่าน e.parameter ได้ (FormData/multipart GAS ไม่ parse)
  */
 export const saveToGoogleSheets = async (projects: Project[]): Promise<boolean> => {
   try {
-    // Use FormData to send as form POST (works with no-cors)
-    const formData = new FormData();
-    formData.append('action', 'saveProjects');
-    formData.append('projects', JSON.stringify(projects));
-    
-    await fetch(GOOGLE_SHEETS_API, {
+    const body = `action=saveProjects&projects=${encodeURIComponent(JSON.stringify(projects))}`;
+    const response = await fetch(GOOGLE_SHEETS_API, {
       method: 'POST',
-      mode: 'no-cors',
-      body: formData,
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+      body,
     });
-    return true;
+    const data = await response.json().catch(() => ({}));
+    if (data.error) {
+      console.error('Google Sheets save error:', data.error);
+      return false;
+    }
+    if (!response.ok) return false;
+    return data.success === true || data.count !== undefined;
   } catch (error) {
     console.error('Error saving to Google Sheets:', error);
     return false;
